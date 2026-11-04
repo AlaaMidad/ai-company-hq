@@ -1,22 +1,32 @@
 import json
 import os
 import psycopg2
-from urllib.parse import urlparse
 
 TASKS_FILE = "tasks_log.json"
-DATABASE_URL = os.environ.get("DATABASE_URL")  # رابط قاعدة بيانات PostgreSQL السحابية
 
 def get_db_connection():
-    if not DATABASE_URL:
+    # محاولة قراءة رابط قاعدة البيانات من أسرار Streamlit أو متغيرات البيئة
+    database_url = None
+    try:
+        import streamlit as st
+        if "DATABASE_URL" in st.secrets:
+            database_url = st.secrets["DATABASE_URL"]
+    except Exception:
+        pass
+        
+    if not database_url:
+        database_url = os.environ.get("DATABASE_URL")
+        
+    if not database_url:
         return None
-    url = urlparse(DATABASE_URL)
-    return psycopg2.connect(
-        database=url.path[1:],
-        user=url.username,
-        password=url.password,
-        host=url.hostname,
-        port=url.port
-    )
+        
+    try:
+        # الاتصال المباشر باستخدام رابط PostgreSQL السحابي دون الحاجة لتحليل معقد للبورت
+        conn = psycopg2.connect(database_url)
+        return conn
+    except Exception as e:
+        print(f"خطأ في الاتصال بقاعدة البيانات: {e}")
+        return None
 
 def init_db():
     # تهيئة محلية كخيار احتياطي
@@ -35,7 +45,7 @@ def init_db():
         with open(TASKS_FILE, "w", encoding="utf-8") as f:
             json.dump(initial_data, f, ensure_ascii=False, indent=4)
             
-    # إنشاء الجداول إذا كانت قاعدة بيانات PostgreSQL متصلة
+    # إنشاء الجدول في قاعدة البيانات السحابية إذا نجح الاتصال
     conn = get_db_connection()
     if conn:
         try:
@@ -50,7 +60,7 @@ def init_db():
             cur.close()
             conn.close()
         except Exception as e:
-            print(f"خطأ في تهيئة قاعدة البيانات السحابية: {e}")
+            print(f"خطأ في إنشاء الجدول سحابياً: {e}")
 
 def load_data():
     init_db()
@@ -67,7 +77,7 @@ def load_data():
         except Exception:
             pass
             
-    # قراءة من الملف المحلي إذا لم تتوفر السحابية
+    # قراءة من الملف المحلي في حال تعذر السحابي
     if os.path.exists(TASKS_FILE):
         with open(TASKS_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -78,7 +88,7 @@ def save_data(data):
     if conn:
         try:
             cur = conn.cursor()
-            cur.execute("DELETE FROM company_state;") # تحديث الحالة العامة
+            cur.execute("DELETE FROM company_state;")
             cur.execute("INSERT INTO company_state (data) VALUES (%s);", [json.dumps(data)])
             conn.commit()
             cur.close()
