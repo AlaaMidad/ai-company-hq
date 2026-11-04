@@ -1,15 +1,45 @@
 import streamlit as st
 import json
+import os
 from database import load_data, save_data
 from github_upskilling import upskill_employee
 from datetime import datetime
+import psycopg2
 
 st.set_page_config(page_title="Nadrai AI HQ - Interactive Office", layout="wide")
 
 st.title("🏢 Nadrai HQ - نظام إدارة وكلاء الذكاء الاصطناعي")
 st.markdown("مكتب الإدارة الذكي، غرفة الحوار، وتتبع تقدم المهام الفريقي.")
 
-# تحميل البيانات من قاعدة البيانات السحابية (Supabase) أو المحلية
+# --- دالة التحقق من نجاح الربط مع قاعدة البيانات السحابية ---
+def verify_supabase_connection():
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        try:
+            if "DATABASE_URL" in st.secrets:
+                db_url = st.secrets["DATABASE_URL"]
+        except Exception:
+            pass
+            
+    if db_url and ("supabase.co" in db_url or "postgres" in db_url):
+        try:
+            # محاولة فتح اتصال حقيقي بقاعدة بيانات بوستجريس
+            conn = psycopg2.connect(db_url)
+            conn.close()
+            return True, "✅ تم بنجاح التحقق من الاتصال بقاعدة البيانات السحابية (Supabase PostgreSQL)! جميع البيانات تُحفظ وتُحدث سحابياً."
+        except Exception as e:
+            return False, f"⚠️ تم العثور على رابط قاعدة البيانات ولكن فشل الاتصال: {e}"
+    else:
+        return False, "⚠️ يعمل التطبيق حالياً بالتخزين المحلي. يرجى إضافة رابط `DATABASE_URL` في إعدادات (Secrets) بمنصة Streamlit للربط السحابي."
+
+# تنفيذ فحص الاتصال وعرض الرسالة الفورية في أعلى الصفحة
+is_connected, status_message = verify_supabase_connection()
+if is_connected:
+    st.success(status_message)
+else:
+    st.warning(status_message)
+
+# تحميل البيانات من قاعدة البيانات أو النظام
 data = load_data()
 
 if data:
@@ -28,31 +58,26 @@ if data:
 
     with tab1:
         st.subheader("💬 العصف الذهني ومناقشة المهام مع المدير التنفيذي")
-        st.markdown("ناقش الأفكار بحرية. عندما تصلون لاتفاق، اطلب منها اعتماد المهمة لتسجيلها وإرسالها للفريق.")
+        st.markdown("ناقش الأفكار بحرية. عندما تصلون لاتفاق، اطلب منها اعتماد المهمة لتسجيلها وحفظها سحابياً.")
 
-        # تهيئة سجل المحادثة
         if "ceo_messages" not in st.session_state:
             st.session_state.ceo_messages = [
                 {"role": "assistant", "content": "مرحباً بك! أنا جاهزة لمناقشة أفكارك وتوزيع المهام البرمجية على الفريق. ما الذي سنعمل عليه اليوم؟"}
             ]
 
-        # عرض الرسائل بطريقة آمنة
         for message in st.session_state.ceo_messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
 
-        # استخدام st.chat_input بشكل مباشر وصحيح لتجنب أخطاء الاستيراد الديناميكي
         user_input = st.chat_input("اطرح فكرتك أو ناقش استراتيجية العمل هنا...")
         if user_input:
             st.session_state.ceo_messages.append({"role": "user", "content": user_input})
             with st.chat_message("user"):
                 st.markdown(user_input)
 
-            # صياغة رد المديرة الذكي
             if any(word in user_input for word in ["اعتمد", "نفذ", "هات", "سوي", "ابدأ"]):
-                ceo_reply = "👩‍💼 [المدير التنفيذي]: ممتاز! تم الاتفاق على هذه الخطة. قمت باعتماد المهمة، تسجيلها في السجل السحابي، وتوزيع الأدوار على الموظفين المختصين."
+                ceo_reply = "👩‍💼 [المدير التنفيذي]: ممتاز! تم الاتفاق على هذه الخطة. قمت باعتماد المهمة، تسجيلها في قاعدة بيانات السحابة، وتوزيع الأدوار."
                 
-                # تجميع سياق المحادثة الأخيرة لتخزينها كمرجع للمهمة
                 chat_history_snippet = " \n".join([f"{m['role']}: {m['content']}" for m in st.session_state.ceo_messages[-4:]])
                 
                 new_task = {
@@ -71,7 +96,7 @@ if data:
                 data.setdefault("tasks", []).append(new_task)
                 save_data(data)
             else:
-                ceo_reply = "👩‍💼 [المدير التنفيذي]: فكرة رائعة ودقيقة. دعنا نحلل الجوانب التقنية أكثر: ما هي المكتبات أو الجداول التي سنحتاج إليها؟ بمجرد أن نتفق نهائياً، قل لي (اعتمد المهمة) لأقوم بتدوينها وتوجيه فريق العمل فوراً."
+                ceo_reply = "👩‍💼 [المدير التنفيذي]: فكرة رائعة. دعنا نحلل الجوانب التقنية أكثر: ما هي المكتبات التي سنحتاج إليها؟ بمجرد أن نتفق نهائياً، قل لي (اعتمد المهمة) لأقوم بتدوينها وتوجيه فريق العمل."
 
             st.session_state.ceo_messages.append({"role": "assistant", "content": ceo_reply})
             with st.chat_message("assistant"):
@@ -79,7 +104,7 @@ if data:
 
     with tab2:
         st.subheader("📊 لوحة تفاصيل المهام وسجل إنجاز الموظفين")
-        st.markdown("تتبع حالة المهام المتفق عليها، المحادثة التي أنتجتها، وماذا عمل كل موظف فيها.")
+        st.markdown("تتبع حالة المهام المتفق عليها، والمحادثة التي أنتجتها، وماذا عمل كل موظف.")
 
         tasks = data.get("tasks", [])
         if tasks:
@@ -94,14 +119,11 @@ if data:
                     
                     st.markdown("---")
                     st.markdown("#### 🛠️ ما ماذا عمل كل موظف في هذه المهمة؟")
-                    logs = t.get('employee_logs', [
-                        {"agent": "CEO Agent", "action": "استلام الطلب وتوجيهه."},
-                        {"agent": "Backend Python Agent", "action": "جاري المعالجة والبرمجة."}
-                    ])
+                    logs = t.get('employee_logs', [])
                     for log in logs:
                         st.markdown(f"* **{log['agent']}:** {log['action']}")
         else:
-            st.info("لا توجد مهام مسجلة حتى الآن. ابدأ الحوار مع المديرة التنفيذية في التبويب الأول وأنشئ مهمتك الأولى!")
+            st.info("لا توجد مهام مسجلة حتى الآن. ابدأ الحوار مع المديرة التنفيذية في التبويب الأول!")
 
         st.markdown("---")
         st.subheader("👥 مستويات الموظفين ونقاط الخبرة (XP & Levels)")
@@ -128,4 +150,4 @@ if data:
                 """)
                 st.progress(min(1.0, current_xp / 500.0))
 else:
-    st.warning("جاري تحميل بيانات النظام والاتصال بقاعدة البيانات السحابية...")
+    st.warning("جاري تحميل بيانات النظام والاتصال بقاعدة البيانات...")
