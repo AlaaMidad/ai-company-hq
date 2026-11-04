@@ -11,7 +11,7 @@ st.set_page_config(page_title="Nadrai AI HQ - Interactive Office", layout="wide"
 st.title("🏢 Nadrai HQ - نظام إدارة وكلاء الذكاء الاصطناعي")
 st.markdown("مكتب الإدارة الذكي، غرفة الحوار، وتتبع تقدم المهام الفريقي.")
 
-# --- دالة الآمان للتحقق من الاتصال وعرض الحالة ---
+# --- دالة الأمان للتحقق من الاتصال وعرض الحالة ---
 def verify_supabase_connection():
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
@@ -44,7 +44,6 @@ except Exception as e:
     st.error(f"حدث خطأ أثناء تحميل بيانات النظام: {e}")
     data = None
 
-# إذا لم تقم الدالة بجلب البيانات، ننشئ بيانات افتراضية مؤقتة لضمان عمل الواجهة
 if not data:
     data = {
         "ceo_status": "Active 🟢",
@@ -67,7 +66,7 @@ if st.sidebar.button("🔄 جولة بحث وتطوير (GitHub Upskill)"):
         st.sidebar.success("تم تحديث مهارات الموظفين عبر GitHub!")
         st.rerun()
     except Exception as ex:
-        st.sidebar.error(fتعذر التحديث: {ex})
+        st.sidebar.error(f"تعذر التحديث: {ex}")
 
 # --- التنقل بين الأقسام الرئيسية ---
 tab1, tab2 = st.tabs(["💬 غرفة الحوار مع CEO", "📊 لوحة متابعة المهام وتفاصيل الموظفين"])
