@@ -11,7 +11,7 @@ st.set_page_config(page_title="Nadrai AI HQ - Interactive Office", layout="wide"
 st.title("🏢 Nadrai HQ - نظام إدارة وكلاء الذكاء الاصطناعي")
 st.markdown("مكتب الإدارة الذكي، غرفة الحوار، وتتبع تقدم المهام الفريقي.")
 
-# --- دالة الأمان للتحقق من الاتصال وعرض الحالة ---
+# --- دالة فحص الاتصال مع إضافة مهلة زمنيّة لتجنب تجميد الصفحة ---
 def verify_supabase_connection():
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
@@ -23,26 +23,28 @@ def verify_supabase_connection():
             
     if db_url:
         try:
-            conn = psycopg2.connect(db_url)
+            # إضافة connect_timeout لمنع الصفحة من التعليق في حال عدم استجابة السيرفر
+            conn = psycopg2.connect(db_url, connect_timeout=3)
             conn.close()
             return True, "✅ تم بنجاح الاتصال بقاعدة البيانات السحابية (Supabase)!"
         except Exception as e:
-            return False, f"⚠️ خطأ في الاتصال بقاعدة البيانات: {e}"
+            return False, f"⚠️ متعذر الاتصال بقاعدة البيانات السحابية: {e}. يتم الآن العمل بالنظام المحلي."
     else:
-        return False, "⚠️ رابط قاعدة البيانات غير معرف في الإعدادات."
+        return False, "⚠️ رابط قاعدة البيانات غير معرف في الإعدادات. يتم العمل بالنظام المحلي."
 
+# عرض إشعار الاتصال
 is_connected, status_message = verify_supabase_connection()
 if is_connected:
     st.success(status_message)
 else:
     st.warning(status_message)
 
-# تحميل البيانات مع حماية كاملة من الأخطاء لمنع ظهور الصفحة البيضاء
+# جلب البيانات بأمان تقتضي وجود كود احتياطي دائماً
+data = None
 try:
     data = load_data()
 except Exception as e:
-    st.error(f"حدث خطأ أثناء تحميل بيانات النظام: {e}")
-    data = None
+    st.error(f"حدث خطأ أثناء تحميل البيانات: {e}")
 
 if not data:
     data = {
